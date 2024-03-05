@@ -1,22 +1,27 @@
 package pkg
 
-import "net"
+import (
+	"net"
+)
 
 // Client structure
 type Client struct {
 	conn    net.Conn
-	outChan chan<- string
+	outChan chan string
 }
 
-func CreateClient(conn net.Conn, outChan chan<- string) Client {
+func CreateClient(conn net.Conn, outChan chan string) Client {
 	return Client{conn, outChan}
 }
 
 func (c Client) GetAddr() net.Addr {
 	return c.conn.RemoteAddr()
 }
-func (c Client) GetOutChan() chan<- string {
+func (c Client) GetOutChan() chan string {
 	return c.outChan
+}
+func (c Client) Send(msg string) {
+	c.conn.Write([]byte(msg))
 }
 
 // Message structure

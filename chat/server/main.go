@@ -37,37 +37,34 @@ func main() {
 
 		fmt.Println("Client connected.")
 		fmt.Println("Client " + client.RemoteAddr().String() + " connected.")
-
 		handleClient(client, messageChannel, addClientChannel, removeClientChannel)
 	}
 }
 
-func handleClient(client net.Conn, messageChannel chan<- pkg.Message,
+func handleClient(conn net.Conn, messageChannel chan<- pkg.Message,
 	addClientChannel chan<- pkg.Client,
 	removeClientChannel chan<- net.Addr) {
 	channel := make(chan string)
-	addClientChannel <- pkg.CreateClient(client, channel)
-	go handleClientIn(client, messageChannel, removeClientChannel)
-	go handleClientOut(client, channel)
+	client := pkg.CreateClient(conn, channel)
+	addClientChannel <- client
+	go handleClientIn(conn, messageChannel, removeClientChannel)
+	go handleClientOut(client)
 }
 
 func handleClientIn(conn net.Conn, messageChannel chan<- pkg.Message, removeClientChannel chan<- net.Addr) {
 	for {
 		buffer, err := bufio.NewReader(conn).ReadBytes('\n')
-
 		if err != nil {
 			conn.Close()
 			removeClientChannel <- conn.RemoteAddr()
 			return
 		}
-
 		messageChannel <- pkg.CreateMessage(conn.RemoteAddr(), string(buffer))
 	}
-
 }
-func handleClientOut(conn net.Conn, c <-chan string) {
-	for msg := range c {
-		conn.Write([]byte(msg))
+func handleClientOut(client pkg.Client) {
+	for msg := range client.GetOutChan() {
+		client.Send(msg)
 	}
 }
 

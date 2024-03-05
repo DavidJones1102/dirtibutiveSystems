@@ -21,23 +21,24 @@ func main() {
 		fmt.Println("Error connecting:", err.Error())
 		os.Exit(1)
 	}
-	go handleOut(socket)
-
+	closeChan := make(chan bool)
+	go handleOut(socket, closeChan)
+	go handleIn(socket)
+	_ = <-closeChan
+}
+func handleIn(socket net.Conn) {
 	reader := bufio.NewReader(os.Stdin)
-
 	for {
-		fmt.Print("Text to send: ")
 		input, _ := reader.ReadString('\n')
 		socket.Write([]byte(input))
 	}
-
 }
-
-func handleOut(socket net.Conn) {
+func handleOut(socket net.Conn, close chan<- bool) {
 	for {
 		message, err := bufio.NewReader(socket).ReadString('\n')
 		if err != nil {
-			fmt.Println("I will no longer receive messages")
+			fmt.Println("Closing...")
+			close <- true
 			return
 		}
 		log.Println(message)
