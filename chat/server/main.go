@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"chat/server/pkg"
 	"fmt"
-	"log"
 	"net"
 	"os"
 )
@@ -26,7 +25,7 @@ func main() {
 
 	messageChannel := make(chan pkg.Message, 2)
 	addClientChannel := make(chan pkg.Client, 2)
-	go propagateMessage(messageChannel, addClientChannel)
+	go distributeMessages(messageChannel, addClientChannel)
 	messageChannel <- pkg.CreateMessage(nil, "Test")
 
 	for {
@@ -51,7 +50,6 @@ func handleClient(client net.Conn, messageChannel chan<- pkg.Message, addClientC
 }
 
 func handleClientIn(conn net.Conn, messageChannel chan<- pkg.Message) {
-	fmt.Println("I will send in a moment")
 	for {
 		buffer, err := bufio.NewReader(conn).ReadBytes('\n')
 
@@ -61,35 +59,33 @@ func handleClientIn(conn net.Conn, messageChannel chan<- pkg.Message) {
 			return
 		}
 
-		log.Println("Client message:", string(buffer[:len(buffer)-1]))
 		messageChannel <- pkg.CreateMessage(conn.RemoteAddr(), string(buffer))
-		log.Println("Message passed:", string(buffer[:len(buffer)-1]))
 	}
 
 }
 func handleClientOut(conn net.Conn, c <-chan string) {
-	fmt.Println("Waiting for messages to me!")
 	for msg := range c {
-		fmt.Println("Sending to client")
 		conn.Write([]byte(msg))
-		fmt.Println("Sent to client")
 	}
 }
 
-func propagateMessage(messageChannel <-chan pkg.Message, addClientChan <-chan pkg.Client) {
+func distributeMessages(messageChannel <-chan pkg.Message, addClientChan <-chan pkg.Client) {
 	var clientsMap = make(map[net.Addr]chan<- string, 2)
-	select {
-	case clientMsg := <-messageChannel:
-		fmt.Println("Got a message to propagate")
-		for addr, c := range clientsMap {
-			if addr == clientMsg.GetAddr() {
-				continue
+	for {
+		select {
+		case clientMsg := <-messageChannel:
+			fmt.Println("Got a message to propagate")
+			for addr, c := range clientsMap {
+				if addr == clientMsg.GetAddr() {
+					continue
+				}
+				c <- "msg from " + clientMsg.GetStrAddr() + " - " + clientMsg.GetMsg()
 			}
-			c <- "msg from " + clientMsg.GetStrAddr() + " - " + clientMsg.GetMsg()
+		case client := <-addClientChan:
+			clientsMap[client.GetAddr()] = client.GetOutChan()
+			fmt.Printf("Client %s Added!\n", client.GetAddr().String())
+			client.GetOutChan() <- "Server response"
 		}
-	case client := <-addClientChan:
-		clientsMap[client.GetAddr()] = client.GetOutChan()
-		fmt.Printf("Client %s Added!\n", client.GetAddr().String())
-		client.GetOutChan() <- "Server response"
 	}
+
 }
