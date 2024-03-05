@@ -4,24 +4,33 @@ import (
 	"bufio"
 	"chat/server/pkg"
 	"fmt"
+	"log"
 	"net"
 	"os"
 )
 
 const (
 	connHost = "localhost"
-	connPort = "8080"
-	connType = "tcp"
+	connPort = 8080
+	connTCP  = "tcp"
+	connUDP  = "udp"
 )
 
 func main() {
-	fmt.Println("Starting " + connType + " server on " + connHost + ":" + connPort)
-	socket, err := net.Listen(connType, connHost+":"+connPort)
+	fmt.Printf("Starting %s server on %s:%d", connTCP, connHost, connPort)
+	socketTCP, err := net.Listen(connTCP, fmt.Sprintf("%s:%d", connHost, connPort))
 	if err != nil {
 		fmt.Println("Error listening:", err.Error())
 		os.Exit(1)
 	}
-	defer socket.Close()
+	defer socketTCP.Close()
+	socketUDP, err := net.ListenUDP(connUDP, &net.UDPAddr{Port: connPort, IP: net.ParseIP(connHost)})
+	if err != nil {
+		fmt.Println("Error listening:", err.Error())
+		os.Exit(1)
+	}
+	defer socketUDP.Close()
+	go readUDP(socketUDP)
 
 	messageChannel := make(chan pkg.Message, 2)
 	addClientChannel := make(chan pkg.Client, 2)
@@ -29,7 +38,7 @@ func main() {
 	go distributeMessages(messageChannel, addClientChannel, removeClientChannel)
 
 	for {
-		client, err := socket.Accept()
+		client, err := socketTCP.Accept()
 		if err != nil {
 			fmt.Println("Error connecting:", err.Error())
 			return
@@ -86,5 +95,16 @@ func distributeMessages(messageChannel <-chan pkg.Message, addClientChan <-chan 
 			delete(clientsMap, addr)
 			fmt.Printf("Client %s removed!\n", addr)
 		}
+	}
+}
+
+func readUDP(connUDP net.Conn) {
+	for {
+		message, err := bufio.NewReader(connUDP).ReadString('\n')
+		if err != nil {
+			fmt.Println("Closing...")
+			return
+		}
+		log.Println(message)
 	}
 }
