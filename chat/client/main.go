@@ -21,6 +21,7 @@ func main() {
 		fmt.Println("Error connecting:", err.Error())
 		os.Exit(1)
 	}
+	go handleOut(socket)
 
 	reader := bufio.NewReader(os.Stdin)
 
@@ -28,7 +29,18 @@ func main() {
 		fmt.Print("Text to send: ")
 		input, _ := reader.ReadString('\n')
 		socket.Write([]byte(input))
-		message, _ := bufio.NewReader(socket).ReadString('\n')
+	}
+
+}
+
+func handleOut(socket net.Conn) {
+	fmt.Println("Ready to receive ")
+	for {
+		message, err := bufio.NewReader(socket).ReadString('\n')
+		if err != nil {
+			fmt.Println("I will no longer receive messages")
+			return
+		}
 		log.Print("Server relay: " + message)
 	}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"chat/server/pkg"
 	"fmt"
 	"log"
 	"net"
@@ -14,8 +15,6 @@ const (
 	connType = "tcp"
 )
 
-var clientsMap = make(map[net.Addr]chan<- string)
-
 func main() {
 	fmt.Println("Starting " + connType + " server on " + connHost + ":" + connPort)
 	socket, err := net.Listen(connType, connHost+":"+connPort)
@@ -25,49 +24,72 @@ func main() {
 	}
 	defer socket.Close()
 
+	messageChannel := make(chan pkg.Message, 2)
+	addClientChannel := make(chan pkg.Client, 2)
+	go propagateMessage(messageChannel, addClientChannel)
+	messageChannel <- pkg.CreateMessage(nil, "Test")
+
 	for {
 		client, err := socket.Accept()
 		if err != nil {
 			fmt.Println("Error connecting:", err.Error())
 			return
 		}
-		channel := make(chan string)
-		clientsMap[client.RemoteAddr()] = channel
+
 		fmt.Println("Client connected.")
 		fmt.Println("Client " + client.RemoteAddr().String() + " connected.")
-		fmt.Println("Client " + client.LocalAddr().String() + " connected.")
 
-		go handleConnection(client, channel)
-		propagateMessage(client.RemoteAddr(), "-----")
+		handleClient(client, messageChannel, addClientChannel)
 	}
 }
 
-func handleConnection(conn net.Conn, c <-chan string) {
-	log.Println("Waiting for message")
-	select {
-	case msg := <-c:
-		conn.Write([]byte(msg))
-
-	}
-	buffer, err := bufio.NewReader(conn).ReadBytes('\n')
-
-	if err != nil {
-		fmt.Println("Client left.")
-		conn.Close()
-		return
-	}
-
-	log.Println("Client message:", string(buffer[:len(buffer)-1]))
-
-	conn.Write(buffer)
-	handleConnection(conn, c)
+func handleClient(client net.Conn, messageChannel chan<- pkg.Message, addClientChannel chan<- pkg.Client) {
+	channel := make(chan string)
+	addClientChannel <- pkg.CreateClient(client, channel)
+	go handleClientIn(client, messageChannel)
+	go handleClientOut(client, channel)
 }
 
-func propagateMessage(senderAddr net.Addr, msg string) {
-	for addr, c := range clientsMap {
-		if addr == senderAddr {
-			continue
+func handleClientIn(conn net.Conn, messageChannel chan<- pkg.Message) {
+	fmt.Println("I will send in a moment")
+	for {
+		buffer, err := bufio.NewReader(conn).ReadBytes('\n')
+
+		if err != nil {
+			fmt.Println("Client left.")
+			conn.Close()
+			return
 		}
-		c <- "msg from " + senderAddr.String() + " - " + msg
+
+		log.Println("Client message:", string(buffer[:len(buffer)-1]))
+		messageChannel <- pkg.CreateMessage(conn.RemoteAddr(), string(buffer))
+		log.Println("Message passed:", string(buffer[:len(buffer)-1]))
+	}
+
+}
+func handleClientOut(conn net.Conn, c <-chan string) {
+	fmt.Println("Waiting for messages to me!")
+	for msg := range c {
+		fmt.Println("Sending to client")
+		conn.Write([]byte(msg))
+		fmt.Println("Sent to client")
+	}
+}
+
+func propagateMessage(messageChannel <-chan pkg.Message, addClientChan <-chan pkg.Client) {
+	var clientsMap = make(map[net.Addr]chan<- string, 2)
+	select {
+	case clientMsg := <-messageChannel:
+		fmt.Println("Got a message to propagate")
+		for addr, c := range clientsMap {
+			if addr == clientMsg.GetAddr() {
+				continue
+			}
+			c <- "msg from " + clientMsg.GetStrAddr() + " - " + clientMsg.GetMsg()
+		}
+	case client := <-addClientChan:
+		clientsMap[client.GetAddr()] = client.GetOutChan()
+		fmt.Printf("Client %s Added!\n", client.GetAddr().String())
+		client.GetOutChan() <- "Server response"
 	}
 }
