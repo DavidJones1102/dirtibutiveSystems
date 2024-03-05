@@ -98,13 +98,14 @@ func distributeMessages(messageChannel <-chan pkg.Message, addClientChan <-chan 
 	}
 }
 
-func readUDP(connUDP net.Conn) {
+func readUDP(connUDP *net.UDPConn) {
 	for {
-		message, err := bufio.NewReader(connUDP).ReadString('\n')
+		message := make([]byte, 2048)
+		_, remoteAddr, err := connUDP.ReadFromUDP(message)
 		if err != nil {
 			fmt.Println("Closing...")
 			return
 		}
-		log.Println(message)
+		log.Printf("%s - %s", remoteAddr, message)
 	}
 }

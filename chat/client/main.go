@@ -11,27 +11,27 @@ import (
 
 const (
 	connHost = "localhost"
-	connPort = "8080"
+	connPort = 8080
 	connTCP  = "tcp"
 	connUDP  = "udp"
 )
 
 func main() {
-	fmt.Println("Connecting to", connTCP, "server", connHost+":"+connPort)
-	socketTCP, err := net.Dial(connTCP, connHost+":"+connPort)
+	fmt.Printf("Connecting to %s server %s:%d", connTCP, connHost, connPort)
+	socketTCP, err := net.Dial(connTCP, fmt.Sprintf("%s:%d", connHost, connPort))
 	if err != nil {
 		fmt.Println("Error connecting:", err.Error())
 		os.Exit(1)
 	}
-	fmt.Println("Connecting to", connUDP, "server", connHost+":"+connPort)
-	socketUDP, err := net.Dial(connUDP, connHost+":"+connPort)
+	fmt.Printf("Connecting to %s server %s:%d", connUDP, connHost, connPort)
+	socketUDP, err := net.DialUDP(connUDP, nil, &net.UDPAddr{Port: connPort, IP: net.ParseIP("255.255.255.255")})
 	if err != nil {
 		fmt.Println("Error connecting:", err.Error())
 		os.Exit(1)
 	}
 	closeChan := make(chan bool)
 	go handleOut(socketTCP, closeChan)
-	go handleOut(socketUDP, closeChan)
+	go handleOutUDP(*socketUDP, closeChan)
 	go handleIn(socketTCP, socketUDP)
 	_ = <-closeChan
 }
@@ -57,5 +57,18 @@ func handleOut(socket net.Conn, close chan<- bool) {
 			return
 		}
 		log.Println(message)
+	}
+}
+
+func handleOutUDP(socket net.UDPConn, close chan<- bool) {
+	for {
+		message := make([]byte, 2048)
+		_, remoteAddr, err := socket.ReadFrom(message)
+		if err != nil {
+			fmt.Println("Closing...")
+			close <- true
+			return
+		}
+		log.Printf("%s - %s", remoteAddr, message)
 	}
 }
