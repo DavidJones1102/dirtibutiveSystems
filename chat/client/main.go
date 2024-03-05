@@ -34,13 +34,12 @@ func main() {
 }
 
 func handleOut(socket net.Conn) {
-	fmt.Println("Ready to receive ")
 	for {
 		message, err := bufio.NewReader(socket).ReadString('\n')
 		if err != nil {
 			fmt.Println("I will no longer receive messages")
 			return
 		}
-		log.Print("Server relay: " + message)
+		log.Println(message)
 	}
 }
