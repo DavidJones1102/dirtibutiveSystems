@@ -32,10 +32,10 @@ func main() {
 	defer socketUDP.Close()
 	go readUDP(socketUDP)
 
-	messageChannel := make(chan pkg.Message, 2)
+	messageTCPChannel := make(chan pkg.Message, 2)
 	addClientChannel := make(chan pkg.Client, 2)
 	removeClientChannel := make(chan net.Addr, 2)
-	go distributeMessages(messageChannel, addClientChannel, removeClientChannel)
+	go distributeMessages(messageTCPChannel, addClientChannel, removeClientChannel)
 
 	for {
 		client, err := socketTCP.Accept()
@@ -46,17 +46,17 @@ func main() {
 
 		fmt.Println("Client connected.")
 		fmt.Println("Client " + client.RemoteAddr().String() + " connected.")
-		handleClient(client, messageChannel, addClientChannel, removeClientChannel)
+		handleClient(client, messageTCPChannel, addClientChannel, removeClientChannel)
 	}
 }
 
-func handleClient(conn net.Conn, messageChannel chan<- pkg.Message,
+func handleClient(conn net.Conn, messageTCPChannel chan<- pkg.Message,
 	addClientChannel chan<- pkg.Client,
 	removeClientChannel chan<- net.Addr) {
 	channel := make(chan string)
 	client := pkg.CreateClient(conn, channel)
 	addClientChannel <- client
-	go handleClientIn(conn, messageChannel, removeClientChannel)
+	go handleClientIn(conn, messageTCPChannel, removeClientChannel)
 	go handleClientOut(client)
 }
 

@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -23,8 +24,14 @@ func main() {
 		fmt.Println("Error connecting:", err.Error())
 		os.Exit(1)
 	}
-	fmt.Printf("Connecting to %s server %s:%d", connUDP, connHost, connPort)
-	socketUDP, err := net.DialUDP(connUDP, nil, &net.UDPAddr{Port: connPort, IP: net.ParseIP("255.255.255.255")})
+	fmt.Printf("Connecting to %s server %s:%d \n", connUDP, connHost, connPort)
+	UDPHost, UDPPortString, _ := strings.Cut(socketTCP.LocalAddr().String(), ":")
+	UDPPort, _ := strconv.Atoi(UDPPortString)
+	socketUDP, err := net.DialUDP(
+		connUDP,
+		&net.UDPAddr{Port: UDPPort, IP: net.ParseIP(UDPHost)},
+		&net.UDPAddr{Port: connPort, IP: net.ParseIP(connHost)},
+	)
 	if err != nil {
 		fmt.Println("Error connecting:", err.Error())
 		os.Exit(1)
