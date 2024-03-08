@@ -7,6 +7,8 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
+	"strings"
 )
 
 const (
@@ -30,12 +32,12 @@ func main() {
 		os.Exit(1)
 	}
 	defer socketUDP.Close()
-	go readUDP(socketUDP)
 
 	messageTCPChannel := make(chan pkg.Message, 2)
 	addClientChannel := make(chan pkg.Client, 2)
 	removeClientChannel := make(chan net.Addr, 2)
-	go distributeMessages(messageTCPChannel, addClientChannel, removeClientChannel)
+	go readUDP(socketUDP, messageTCPChannel)
+	go distributeMessages(socketUDP, messageTCPChannel, addClientChannel, removeClientChannel)
 
 	for {
 		client, err := socketTCP.Accept()
@@ -77,16 +79,25 @@ func handleClientOut(client pkg.Client) {
 	}
 }
 
-func distributeMessages(messageChannel <-chan pkg.Message, addClientChan <-chan pkg.Client, removeClientChannel <-chan net.Addr) {
+func distributeMessages(socketUDP *net.UDPConn, messageChannel <-chan pkg.Message, addClientChan <-chan pkg.Client, removeClientChannel <-chan net.Addr) {
 	var clientsMap = make(map[net.Addr]chan<- string, 2)
 	for {
 		select {
 		case clientMsg := <-messageChannel:
 			for addr, c := range clientsMap {
-				if addr == clientMsg.GetAddr() {
+				if addr.String() == clientMsg.GetAddr().String() {
 					continue
 				}
-				c <- "msg from " + clientMsg.GetStrAddr() + " - " + clientMsg.GetMsg()
+				msg := fmt.Sprintf("msg from %s - %s\n", clientMsg.GetStrAddr(), clientMsg.GetMsg())
+				if strings.HasPrefix(clientMsg.GetMsg(), "U ") {
+					_, err := socketUDP.WriteToUDP([]byte(msg), stringToUDPAddr(addr.String()))
+					if err != nil {
+						return
+					}
+					println("Sending UDP " + addr.String())
+				} else {
+					c <- msg
+				}
 			}
 		case client := <-addClientChan:
 			clientsMap[client.GetAddr()] = client.GetOutChan()
@@ -98,7 +109,7 @@ func distributeMessages(messageChannel <-chan pkg.Message, addClientChan <-chan 
 	}
 }
 
-func readUDP(connUDP *net.UDPConn) {
+func readUDP(connUDP *net.UDPConn, messageChannel chan<- pkg.Message) {
 	for {
 		message := make([]byte, 2048)
 		_, remoteAddr, err := connUDP.ReadFromUDP(message)
@@ -106,6 +117,13 @@ func readUDP(connUDP *net.UDPConn) {
 			fmt.Println("Closing...")
 			return
 		}
+		messageChannel <- pkg.CreateMessage(remoteAddr, string(message))
 		log.Printf("%s - %s", remoteAddr, message)
 	}
+}
+
+func stringToUDPAddr(addr string) *net.UDPAddr {
+	UDPHost, UDPPortString, _ := strings.Cut(addr, ":")
+	UDPPort, _ := strconv.Atoi(UDPPortString)
+	return &net.UDPAddr{Port: UDPPort, IP: net.ParseIP(UDPHost)}
 }
