@@ -19,7 +19,7 @@ const (
 )
 
 func main() {
-	fmt.Printf("Starting %s server on %s:%d", connTCP, connHost, connPort)
+	fmt.Printf("Starting %s server on %s:%d\n", connTCP, connHost, connPort)
 	socketTCP, err := net.Listen(connTCP, fmt.Sprintf("%s:%d", connHost, connPort))
 	if err != nil {
 		fmt.Println("Error listening:", err.Error())
@@ -46,7 +46,6 @@ func main() {
 			return
 		}
 
-		fmt.Println("Client connected.")
 		fmt.Println("Client " + client.RemoteAddr().String() + " connected.")
 		handleClient(client, messageTCPChannel, addClientChannel, removeClientChannel)
 	}
