@@ -50,10 +50,10 @@ func handleIn(socketTCP net.Conn, socketUDP net.Conn) {
 			builder.WriteString(input)
 			for {
 				in, _ := reader.ReadString('\n')
-				builder.WriteString(in)
 				if len(in) == 2 {
 					break
 				}
+				builder.WriteString(in)
 			}
 			fmt.Println("Sending through UDP")
 			socketUDP.Write([]byte(builder.String()))
