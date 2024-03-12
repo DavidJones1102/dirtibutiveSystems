@@ -1,5 +1,7 @@
 package pkg
 
+import "time"
+
 type FormA struct {
 	Foo string `json:"foo"`
 }
@@ -22,4 +24,10 @@ type Typeahead struct {
 		} `json:"data"`
 		PartialContent bool `json:"partial_content"`
 	} `json:"results"`
+}
+
+type Body struct {
+	City      string
+	StartDate time.Time
+	EndDate   time.Time
 }

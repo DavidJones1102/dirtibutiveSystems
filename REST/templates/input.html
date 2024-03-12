@@ -2,9 +2,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>City and Date Form</title>
 </head>
 <body>
-Hello World
+<h2>Enter City Name and Date</h2>
+<form action="#" method="POST">
+    <label for="city">City Name:</label><br>
+    <input type="text" id="city" name="city" required><br><br>
+
+    <label for="start_date">Date:</label><br>
+    <input type="date" id="start_date" name="start_date" required><br><br>
+    <label for="end_date">Date:</label><br>
+    <input type="date" id="end_date" name="end_date" required><br><br>
+
+    <input type="submit" value="Submit">
+</form>
 </body>
 </html>

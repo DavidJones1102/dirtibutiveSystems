@@ -93,7 +93,6 @@ func distributeMessages(socketUDP *net.UDPConn, messageChannel <-chan pkg.Messag
 					if err != nil {
 						return
 					}
-					println("Sending UDP " + addr.String())
 				} else {
 					c <- msg
 				}
