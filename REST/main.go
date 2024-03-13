@@ -14,48 +14,36 @@ import (
 func main() {
 	r := gin.Default()
 	r.LoadHTMLGlob("templates/*")
-	r.GET("/input", getInput)
-	r.POST("/input", response)
-	r.GET("/tpl", getTpl)
-	r.GET("/", getHome)
-	r.POST("/", postHome)
-	//askAPI()
-	askAPIBooking("las vegas")
-	//askAPIPost("las vegas")
+	r.GET("/", getInput)
+	r.POST("/", buildResponse)
 	r.Run("127.0.0.1:8080")
 }
 
-func getHome(c *gin.Context) {
-	c.JSON(200, gin.H{
-		"message": "pong",
-	})
-}
-func postHome(c *gin.Context) {
-	fmt.Printf("Query: %s\n", c.Query("id"))
-	Body := pkg.FormA{}
-	if errA := c.ShouldBind(&Body); errA != nil {
-		fmt.Printf("Error body %s", Body.Foo)
-	}
-	fmt.Printf("Body %s\n", Body.Foo)
-}
 func getInput(c *gin.Context) {
 	c.HTML(http.StatusOK, "input.html", nil)
 }
-func getTpl(c *gin.Context) {
-	m := gin.H{"Message": "Hej z template"}
-	c.HTML(http.StatusOK, "response.html", m)
-}
-func response(c *gin.Context) {
+
+func buildResponse(c *gin.Context) {
 	err := c.Request.ParseForm()
 	if err != nil {
-		c.JSON(400, gin.H{"error": "Failed to parse form data"})
+		c.HTML(http.StatusBadRequest, "error.html", "Cannot parse your form")
 		return
 	}
 	city := c.PostForm("city")
 	startDate, validStart := time.Parse(time.DateOnly, c.PostForm("start_date"))
-	endDate, validEnd := time.Parse(time.DateOnly, c.PostForm("start_date"))
+	endDate, validEnd := time.Parse(time.DateOnly, c.PostForm("end_date"))
 	if validStart != nil || validEnd != nil || city == "" {
-		c.JSON(400, gin.H{"error": "Invalid body"})
+		c.HTML(http.StatusBadRequest, "error.html", "Invalid body")
+		return
+	}
+
+	if startDate.After(endDate) {
+		c.HTML(http.StatusBadRequest, "error.html", "End date should be after start date")
+		return
+	}
+
+	if startDate.Before(time.Now()) {
+		c.HTML(http.StatusBadRequest, "error.html", "You cannot travel in time ...")
 		return
 	}
 	Body := pkg.Body{
@@ -63,33 +51,24 @@ func response(c *gin.Context) {
 		StartDate: startDate,
 		EndDate:   endDate,
 	}
-	c.HTML(http.StatusOK, "response.html", Body)
-}
-
-func askAPI() {
-	url := "https://flight-fare-search.p.rapidapi.com/v2/flights/?from=LHR&to=DXB&date=%3CREQUIRED%3E&adult=1&type=economy&currency=USD"
-
-	api := os.Getenv("API")
-	req, err := http.NewRequest("GET", url, nil)
-	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("X-RapidAPI-Key", api)
-	req.Header.Add("X-RapidAPI-Host", "flight-fare-search.p.rapidapi.com")
-
-	client := &http.Client{}
-	res, err := client.Do(req)
-	if err != nil {
-		panic(err)
-	}
-	defer res.Body.Close()
-	v := gin.H{}
-	err = json.NewDecoder(res.Body).Decode(&v)
-	if err != nil {
-		fmt.Errorf("%w\n", err)
+	typeahead := askAPIAttractions(Body.City)
+	if len(typeahead.Results.Data) <= 0 {
+		c.HTML(http.StatusOK, "error.html", "this place doesn't exist (at least in our database)")
 		return
 	}
-	fmt.Printf("Body: %#v\n", v)
+	bookingResponse := askAPIBookingHotel(
+		typeahead.Results.Data[0].ResultObject.Latitude,
+		typeahead.Results.Data[0].ResultObject.Longitude,
+		Body.StartDate.Format(time.DateOnly),
+		Body.EndDate.Format(time.DateOnly),
+	)
+	c.HTML(http.StatusOK, "response.html", gin.H{
+		"Attr":   typeahead.Results.Data[0],
+		"Hotels": bookingResponse.Result,
+	})
 }
-func askAPIPost(query string) gin.H {
+
+func askAPIAttractions(query string) pkg.Typeahead {
 	url := "https://tourist-attraction.p.rapidapi.com/typeahead"
 	api := os.Getenv("API")
 	payload := strings.NewReader(fmt.Sprintf("q=%s&language=en_US", query))
@@ -104,21 +83,25 @@ func askAPIPost(query string) gin.H {
 		panic(err)
 	}
 	defer res.Body.Close()
-	responseMap := gin.H{}
-	err = json.NewDecoder(res.Body).Decode(&responseMap)
+	Typeahead := pkg.Typeahead{}
+	err = json.NewDecoder(res.Body).Decode(&Typeahead)
 	if err != nil {
 		fmt.Errorf("%w\n", err)
-		return nil
+		return pkg.Typeahead{}
 	}
-	return responseMap
+	return Typeahead
 }
 
-func askAPIBooking(query string) gin.H {
-	url := fmt.Sprintf("https://booking-com15.p.rapidapi.com/api/v1/hotels/searchDestination?query=%s", query)
+func askAPIBookingHotel(latitude, longitude, arrivalDate, departureDate string) pkg.BookingResponse {
+	url := fmt.Sprintf(
+		"https://booking-com.p.rapidapi.com/v1/hotels/search-by-coordinates?locale=en-gb&room_number=1&checkin_date=%s&checkout_date=%s&filter_by_currency=EUR&longitude=%s&latitude=%s&adults_number=2&order_by=popularity&units=metric&include_adjacency=true&children_ages=0",
+		arrivalDate, departureDate, longitude, latitude,
+	)
+
 	api := os.Getenv("API")
 	req, err := http.NewRequest("GET", url, nil)
 	req.Header.Add("X-RapidAPI-Key", api)
-	req.Header.Add("X-RapidAPI-Host", "booking-com15.p.rapidapi.com")
+	req.Header.Add("X-RapidAPI-Host", "booking-com.p.rapidapi.com")
 
 	client := &http.Client{}
 	res, err := client.Do(req)
@@ -126,11 +109,7 @@ func askAPIBooking(query string) gin.H {
 		panic(err)
 	}
 	defer res.Body.Close()
-	responseMap := gin.H{}
-	err = json.NewDecoder(res.Body).Decode(&responseMap)
-	if err != nil {
-		fmt.Errorf("%w\n", err)
-		return nil
-	}
-	return responseMap
+	hotelsList := pkg.BookingResponse{}
+	_ = json.NewDecoder(res.Body).Decode(&hotelsList)
+	return hotelsList
 }

@@ -2,11 +2,92 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <title>Your vacations</title>
+    <style>
+        button {
+            display: inline-block;
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 8px;
+            transition-duration: 0.4s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+            color: white;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f2f2f2;
+        }
+        .flex{
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center
+        }
+        .container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1,h2 {
+            color: #333;
+        }
+        p {
+            color: #666;
+        }
+        .rating {
+            color: #f39c12;
+            font-size: 24px;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 20px 0;
+        }
+    </style>
 </head>
 <body>
-{{.City}}
-{{.StartDate}}
-{{.EndDate}}
+<a href="/" >
+    <button>Go back</button>
+</a>
+<br>
+<div class="flex">
+    <div class="container flex">
+        <h2> Nearby attraction </h2>
+        <p>{{ .Attr.ResultObject.Description }}</p>
+        <img src="{{.Attr.ResultObject.Photo.Images.Original.Url}}" alt="Photo">
+    </div>
+
+
+    <h1>Suggested Hotels</h1>
+    <div>
+        {{range $Hotel := .Hotels}}
+        <div class="container">
+            <h2>{{ $Hotel.HotelName }}</h2>
+            <br>
+            <img src="{{$Hotel.MaxPhotoUrl}}" alt="{{$Hotel.HotelName}}">
+            <p class="rating">Rating: {{$Hotel.ReviewScore}} {{$Hotel.ReviewScoreWord}} </p>
+        </div>
+        {{end}}
+    </div>
+</div>
+
+
+
 </body>
 </html>
