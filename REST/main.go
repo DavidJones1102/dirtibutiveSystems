@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+var InternalAPI = "1234"
+
 func main() {
 	r := gin.Default()
 	r.LoadHTMLGlob("templates/*")
@@ -27,6 +29,11 @@ func buildResponse(c *gin.Context) {
 	err := c.Request.ParseForm()
 	if err != nil {
 		c.HTML(http.StatusBadRequest, "error.html", "Cannot parse your form")
+		return
+	}
+	inApi := c.PostForm("api")
+	if inApi != InternalAPI {
+		c.HTML(http.StatusBadRequest, "error.html", "Invalid api key")
 		return
 	}
 	city := c.PostForm("city")
